@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Surat Suara Digital - Pilkades Tanjungpakis 2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Library Pembaca QR Code otomatis -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            background-color: #0f172a;
+        }
+        @keyframes scan {
+            0% { top: 0%; }
+            50% { top: 92%; }
+            100% { top: 0%; }
+        }
+        .scan-laser {
+            animation: scan 2s ease-in-out infinite;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex items-center justify-center p-2 sm:p-3 overflow-hidden">
+
+    <!-- Tablet Landscape Container Frame -->
+    <div id="appContainer" class="w-full max-w-6xl bg-white rounded-3xl shadow-2xl border-4 border-slate-700 h-[96vh] flex flex-col justify-between overflow-hidden relative">
+        
+        <!-- Header Bar -->
+        <header class="bg-slate-900 text-white px-5 py-2.5 flex justify-between items-center shadow-md shrink-0">
+            <div class="flex items-center space-x-3">
+                <div class="bg-red-600 text-white px-2.5 py-1 rounded-md font-black text-xs tracking-wider uppercase">
+                    E-VOTING
+                </div>
+                <div>
+                    <h1 class="font-black text-base md:text-lg leading-tight tracking-wide text-white">TPS 01 - DESA TANJUNGPAKIS</h1>
+                    <p class="text-[11px] text-slate-400">Kabupaten Karawang | Tahun 2026 (Samsung Tab A Optimized)</p>
+                </div>
+            </div>
+
+            <!-- Header Controls & Fullscreen Toggle -->
+            <div class="flex items-center gap-2">
+                <button id="fullscreenBtn" onclick="toggleFullScreen()" class="bg-amber-500 hover:bg-amber-600 active:scale-95 text-xs font-bold text-slate-950 px-3 py-2 rounded-xl flex items-center gap-1.5 transition shadow">
+                    <i data-lucide="maximize" class="w-4 h-4"></i>
+                    <span id="fullscreenText">Layar Penuh</span>
+                </button>
+                <button onclick="openCandidateEditor()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700 flex items-center gap-1.5 transition text-slate-200">
+                    <i data-lucide="user-cog" class="w-4 h-4 text-amber-400"></i>
+                    <span>Edit Kandidat</span>
+                </button>
+                <button onclick="toggleAdminPanel()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-xs font-semibold px-3 py-2 rounded-xl border border-slate-700 flex items-center gap-1.5 transition text-slate-200">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4 text-emerald-400"></i>
+                    <span>Hasil Suara</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- MAIN LANDSCAPE VIEWPORT -->
+        <main class="flex-1 flex flex-col justify-center items-center p-3 relative overflow-y-auto no-scrollbar">
+
+            <!-- SCREEN 1: AUTOMATIC SCAN QR CODE -->
+            <section id="qrScreen" class="w-full max-w-2xl flex flex-col items-center text-center space-y-3 my-auto">
+                <div class="space-y-0.5">
+                    <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold mb-1">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                        Kamera Scanner Aktif (Samsung Tab SM-P205)
+                    </div>
+                    <h2 class="text-2xl sm:text-3xl font-black text-slate-900 uppercase tracking-tight">SCAN QR CODE PEMILIH</h2>
+                    <p class="text-xs sm:text-sm text-slate-600 font-medium">Dekatkan QR Code Surat Panggilan Pemilih ke Kamera Tablet</p>
+                </div>
+
+                <!-- Live Camera Feed & QR Detection Box -->
+                <div class="w-60 h-60 sm:w-72 sm:h-72 border-4 border-slate-900 rounded-3xl relative overflow-hidden bg-slate-950 shadow-2xl flex flex-col items-center justify-center">
+                    
+                    <!-- Video Feed with strict inline attrs for Samsung/Android Tab -->
+                    <video id="webcamVideo" autoplay playsinline webkit-playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
+                    
+                    <!-- Hidden Canvas for jsQR Processing -->
+                    <canvas id="qrCanvas" class="hidden"></canvas>
+
+                    <!-- Camera Fallback / Manual Permission -->
+                    <div id="webcamFallback" class="hidden absolute inset-0 bg-slate-900 z-10 flex flex-col items-center justify-center text-slate-400 p-4 text-center space-y-2">
+                        <i data-lucide="camera-off" class="w-10 h-10 text-slate-500"></i>
+                        <span class="text-xs font-medium text-slate-300">Akses Kamera Tablet Belum Aktif</span>
+                        <button onclick="startCamera()" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2 rounded-xl transition shadow">
+                            Aktifkan Kamera Tablet
+                        </button>
+                    </div>
+
+                    <!-- Target Scanner Laser & Guide Frame -->
+                    <div id="scannerOverlay" class="absolute inset-0 pointer-events-none p-5 flex flex-col items-center justify-between">
+                        <div class="w-full h-full border-2 border-emerald-400 rounded-2xl relative shadow-[0_0_15px_rgba(52,211,153,0.3)]">
+                            <div class="scan-laser absolute w-full h-1 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_12px_#ef4444]"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Manual Trigger & Camera Flip Controls -->
+                <div class="w-full max-w-md flex flex-col sm:flex-row gap-2 pt-1">
+                    <button onclick="switchCamera()" class="sm:w-1/3 py-2.5 bg-slate-200 hover:bg-slate-300 active:scale-95 text-slate-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> Ganti Kamera
+                    </button>
+                    <button onclick="simulasikanScan()" class="sm:w-2/3 py-2.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-extrabold text-sm rounded-xl shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 transition">
+                        <i data-lucide="qr-code" class="w-5 h-5"></i> MASUK PEMILIHAN (SIMULASI)
+                    </button>
+                </div>
+            </section>
+
+            <!-- SCREEN 2: HORIZONTAL LANDSCAPE DIGITAL BALLOT -->
+            <section id="ballotScreen" class="hidden w-full h-full flex-col justify-between items-center space-y-2 py-1">
+                
+                <!-- Ballot Header Text -->
+                <div class="text-center space-y-0.5">
+                    <h2 class="text-lg sm:text-2xl font-black text-slate-900 tracking-wide uppercase">
+                        CONTOH SURAT SUARA DIGITAL
+                    </h2>
+                    <h3 class="text-base sm:text-xl font-extrabold text-slate-800 uppercase tracking-tight">
+                        CALON KEPALA DESA TANJUNGPAKIS 2026
+                    </h3>
+                </div>
+
+                <!-- Horizontal Candidate Layout -->
+                <div id="candidatesGrid" class="grid grid-cols-3 gap-3 sm:gap-6 w-full max-w-5xl px-2 my-auto items-stretch">
+                    <!-- Dynamic Candidates Rendered via JS -->
+                </div>
+
+                <!-- Red Bottom Selection Button -->
+                <div class="w-full max-w-5xl px-2 shrink-0">
+                    <button id="pilihBtn" disabled onclick="openConfirmationModal()" class="w-full py-3.5 bg-red-600 disabled:bg-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed hover:bg-red-700 active:scale-[0.99] text-white font-black text-xl sm:text-2xl rounded-xl tracking-wider transition-all shadow-lg uppercase">
+                        PILIH KANDIDAT INI
+                    </button>
+                </div>
+
+            </section>
+
+        </main>
+
+        <!-- Footer Bar -->
+        <footer class="bg-slate-100 border-t border-slate-200 px-5 py-2 flex justify-between items-center text-xs text-slate-500 shrink-0">
+            <span>Panitia Pemilihan Kepala Desa (PILKADES) Tanjungpakis 2026</span>
+            <span class="flex items-center gap-1.5 font-semibold text-emerald-600">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Sistem E-Voting Tablet Active
+            </span>
+        </footer>
+
+        <!-- MODAL 1: KONFIRMASI PEMILIHAN -->
+        <div id="confirmModal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-sky-100 rounded-3xl p-5 sm:p-7 w-full max-w-md text-center shadow-2xl border border-sky-200 flex flex-col items-center space-y-4 transform transition-all animate-in fade-in zoom-in duration-200">
+                
+                <div class="space-y-1">
+                    <h3 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Konfirmasi Pemilihan</h3>
+                    <p class="text-slate-700 text-sm sm:text-base font-semibold">Apa Anda yakin akan memilih kandidat ini?</p>
+                </div>
+
+                <!-- Candidate Card Display inside Modal -->
+                <div class="flex flex-col items-center space-y-2">
+                    <div id="modalPhotoContainer" class="w-36 h-48 rounded-xl overflow-hidden shadow-xl border-4 border-emerald-600 bg-emerald-600">
+                        <!-- Dynamic SVG or Image -->
+                    </div>
+                    <span id="modalCandidateName" class="text-xl font-black text-slate-900 tracking-wide uppercase">
+                        JANUR HASAN
+                    </span>
+                </div>
+
+                <!-- Action Buttons: ULANGI & PILIH -->
+                <div class="grid grid-cols-2 gap-4 w-full pt-1">
+                    <button onclick="closeConfirmationModal()" class="py-3.5 bg-red-600 hover:bg-red-700 active:scale-95 text-white font-black text-lg sm:text-xl rounded-2xl shadow-md uppercase tracking-wider transition">
+                        ULANGI
+                    </button>
+                    <button onclick="confirmVote()" class="py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-black text-lg sm:text-xl rounded-2xl shadow-md uppercase tracking-wider transition">
+                        PILIH
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- MODAL 2: SUCCESS ALERT OVERLAY -->
+        <div id="successModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+            <div class="bg-blue-50 border border-blue-200 rounded-3xl p-8 sm:p-10 w-full max-w-sm text-center shadow-2xl flex flex-col items-center space-y-4 animate-in fade-in zoom-in duration-300">
+                <div class="w-20 h-20 bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-500/40">
+                    <i data-lucide="check" class="w-12 h-12 stroke-[3]"></i>
+                </div>
+
+                <h3 class="text-3xl font-black text-slate-900 tracking-tight pt-2">Terima Kasih</h3>
+                <p class="text-slate-700 font-bold text-lg">Suara Berhasil Disimpan</p>
+                
+                <p class="text-xs text-slate-400 pt-2 flex items-center gap-1">
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i>
+                    Memuat kembali scanner...
+                </p>
+            </div>
+        </div>
+
+        <!-- MODAL 3: CANDIDATE EDITOR -->
+        <div id="editorModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <div class="bg-white rounded-2xl p-5 w-full max-w-3xl shadow-2xl flex flex-col space-y-4 my-auto max-h-[90vh]">
+                <div class="flex justify-between items-center border-b pb-3">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="user-cog" class="w-6 h-6 text-amber-500"></i>
+                        <h3 class="text-xl font-extrabold text-slate-900">Pengaturan & Edit Foto Kandidat</h3>
+                    </div>
+                    <button onclick="closeCandidateEditor()" class="text-slate-400 hover:text-slate-600">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+
+                <div id="candidateEditorList" class="grid grid-cols-1 md:grid-cols-3 gap-4 overflow-y-auto p-1 max-h-[58vh] no-scrollbar">
+                    <!-- Dynamic Render by JS -->
+                </div>
+
+                <div class="pt-3 border-t flex justify-end items-center gap-3">
+                    <button onclick="resetCandidatesToDefault()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold rounded-xl transition">
+                        Reset Ke Default
+                    </button>
+                    <button onclick="saveCandidatesConfig()" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase rounded-xl shadow-md transition">
+                        Simpan Perubahan
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- CAMERA SNAPSHOT MODAL FOR EDITOR -->
+        <div id="snapModal" class="hidden fixed inset-0 z-50 bg-slate-950/90 flex items-center justify-center p-4">
+            <div class="bg-white p-5 rounded-2xl w-full max-w-md flex flex-col items-center space-y-3">
+                <h4 class="font-extrabold text-base text-slate-900">Ambil Foto Kandidat dari Kamera</h4>
+                <div class="w-full h-64 bg-black rounded-xl overflow-hidden relative">
+                    <video id="snapVideo" autoplay playsinline webkit-playsinline muted class="w-full h-full object-cover"></video>
+                </div>
+                <div class="flex gap-3 w-full">
+                    <button onclick="closeSnapModal()" class="w-1/2 py-2.5 bg-slate-200 text-slate-700 font-bold text-xs rounded-xl">Batal</button>
+                    <button onclick="takeCandidateSnapshot()" class="w-1/2 py-2.5 bg-emerald-600 text-white font-bold text-xs rounded-xl shadow">Jepret Foto</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL 4: ADMIN REAL-TIME RESULTS -->
+        <div id="adminModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div class="bg-white rounded-2xl p-6 w-full max-w-xl shadow-2xl flex flex-col space-y-5">
+                <div class="flex justify-between items-center border-b pb-3">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="bar-chart-2" class="w-6 h-6 text-blue-600"></i>
+                        <h3 class="text-xl font-extrabold text-slate-900">Perhitungan Suara Real-Time</h3>
+                    </div>
+                    <button onclick="toggleAdminPanel()" class="text-slate-400 hover:text-slate-600">
+                        <i data-lucide="x" class="w-6 h-6"></i>
+                    </button>
+                </div>
+
+                <div class="bg-blue-50 p-4 rounded-xl flex justify-between items-center">
+                    <span class="text-slate-700 font-semibold text-sm">Total Suara Masuk:</span>
+                    <span id="totalVotesBadge" class="text-2xl font-black text-blue-700">0</span>
+                </div>
+
+                <div id="adminResultsList" class="space-y-4 py-2">
+                    <!-- Rendered by JS -->
+                </div>
+
+                <div class="pt-3 border-t flex justify-between items-center">
+                    <button onclick="resetVoteCounts()" class="px-4 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-bold rounded-xl transition flex items-center gap-1">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4"></i> Reset Suara
+                    </button>
+                    <button onclick="toggleAdminPanel()" class="px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition">
+                        Tutup
+                    </button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- APP LOGIC -->
+    <script>
+        const defaultCandidates = [
+            { id: 1, number: "1", name: "JANUR HASAN", photoUrl: null, bgColor: "#15803d" },
+            { id: 2, number: "2", name: "CALON LAIN", photoUrl: null, bgColor: "#ffffff" },
+            { id: 3, number: "3", name: "CALON LAIN", photoUrl: null, bgColor: "#ffffff" }
+        ];
+
+        let candidates = [];
+        let selectedCandidateId = null;
+        let voteCounts = { 1: 0, 2: 0, 3: 0 };
+        let mediaStream = null;
+        let activeEditCandidateId = null;
+        let facingMode = "user";
+        let isScanningActive = true;
+        let animFrameId = null;
+
+        const defaultSvgJanur = `<svg viewBox="0 0 200 250" class="w-full h-full object-cover">
+            <rect width="200" height="250" fill="#15803d"/>
+            <path d="M 20 250 L 50 160 L 100 180 L 150 160 L 180 250 Z" fill="#1e293b"/>
+            <path d="M 70 165 L 100 240 L 130 165 Z" fill="#ffffff"/>
+            <polygon points="95,175 105,175 108,240 100,248 92,240" fill="#dc2626"/>
+            <polygon points="50,160 85,210 70,220 35,170" fill="#0f172a"/>
+            <polygon points="150,160 115,210 130,220 165,170" fill="#0f172a"/>
+            <rect x="85" y="130" width="30" height="40" fill="#f87171" opacity="0.8"/>
+            <ellipse cx="100" cy="110" rx="35" ry="42" fill="#fca5a5"/>
+            <ellipse cx="63" cy="112" rx="6" ry="10" fill="#fca5a5"/>
+            <ellipse cx="137" cy="112" rx="6" ry="10" fill="#fca5a5"/>
+            <path d="M 64 90 Q 70 75 100 75 Q 130 75 136 90 Z" fill="#09090b"/>
+            <path d="M 63 92 Q 100 82 137 92 L 134 50 Q 100 44 66 50 Z" fill="#09090b"/>
+            <path d="M 82 124 Q 100 120 118 124 Q 100 130 82 124 Z" fill="#09090b"/>
+            <ellipse cx="85" cy="104" rx="4" ry="3" fill="#09090b"/>
+            <ellipse cx="115" cy="104" rx="4" ry="3" fill="#09090b"/>
+            <path d="M 78 97 Q 85 94 92 97" stroke="#09090b" stroke-width="2.5" fill="none"/>
+            <path d="M 108 97 Q 115 94 122 97" stroke="#09090b" stroke-width="2.5" fill="none"/>
+            <path d="M 88 134 Q 100 142 112 134" stroke="#991b1b" stroke-width="2" fill="none"/>
+        </svg>`;
+
+        const defaultSvgSilhouette = `<svg class="w-full h-full text-slate-400 fill-current" viewBox="0 0 200 250">
+            <rect width="200" height="250" fill="#ffffff"/>
+            <path d="M 30 250 C 30 180, 60 160, 100 160 C 140 160, 170 180, 170 250 Z" fill="#64748b"/>
+            <ellipse cx="100" cy="115" rx="36" ry="42" fill="#64748b"/>
+            <path d="M 64 96 Q 100 86 136 96 L 133 52 Q 100 46 67 52 Z" fill="#475569"/>
+        </svg>`;
+
+        window.onload = function() {
+            lucide.createIcons();
+            loadCandidatesConfig();
+            loadVotesFromStorage();
+            renderBallotCandidates();
+            
+            // OTOMATIS AKTIFKAN KAMERA SAMSUNG TAB
+            startCamera();
+        };
+
+        // --- FULLSCREEN TOGGLE SYSTEM ---
+        function toggleFullScreen() {
+            const elem = document.documentElement;
+            const textEl = document.getElementById('fullscreenText');
+
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && !document.mozFullScreenElement && !document.msFullscreenElement) {
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Chrome & Samsung Browser */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.mozRequestFullScreen) {
+                    elem.mozRequestFullScreen();
+                } else if (elem.msRequestFullscreen) {
+                    elem.msRequestFullscreen();
+                }
+                textEl.innerText = "Keluar Penuh";
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+                textEl.innerText = "Layar Penuh";
+            }
+        }
+
+        // --- CAMERA COMPATIBILITY FOR SAMSUNG TAB (SM-P205) ---
+        async function getCameraStream() {
+            // Cascade fallback constraints optimized for Android/Samsung tablet browsers
+            const constraintsList = [
+                { video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false },
+                { video: { facingMode: facingMode }, audio: false },
+                { video: true, audio: false }
+            ];
+
+            for (let constraints of constraintsList) {
+                try {
+                    return await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (e) {
+                    console.log("Mencoba constraint fallback kamera berikut...", e);
+                }
+            }
+            throw new Error("Gagal mengaktifkan kamera tablet");
+        }
+
+        async function startCamera() {
+            try {
+                if (mediaStream) {
+                    mediaStream.getTracks().forEach(track => track.stop());
+                }
+
+                mediaStream = await getCameraStream();
+                
+                const videoEl = document.getElementById('webcamVideo');
+                videoEl.srcObject = mediaStream;
+                videoEl.play().catch(e => console.log("Auto play caught:", e));
+
+                document.getElementById('webcamFallback').classList.add('hidden');
+                document.getElementById('scannerOverlay').classList.remove('hidden');
+
+                isScanningActive = true;
+                requestAnimationFrame(scanQRCodeLoop);
+
+            } catch (err) {
+                console.warn("Kamera tidak dapat diakses otomatis:", err);
+                document.getElementById('webcamFallback').classList.remove('hidden');
+                document.getElementById('scannerOverlay').classList.add('hidden');
+            }
+        }
+
+        function switchCamera() {
+            facingMode = (facingMode === "user") ? "environment" : "user";
+            startCamera();
+        }
+
+        function scanQRCodeLoop() {
+            if (!isScanningActive) return;
+
+            const video = document.getElementById('webcamVideo');
+            const canvas = document.getElementById('qrCanvas');
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                if (window.jsQR) {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                        inversionAttempts: "dontInvert",
+                    });
+
+                    if (code && code.data) {
+                        isScanningActive = false;
+                        simulasikanScan();
+                        return;
+                    }
+                }
+            }
+
+            animFrameId = requestAnimationFrame(scanQRCodeLoop);
+        }
+
+        // --- VOTING FLOW LOGIC ---
+        function simulasikanScan() {
+            isScanningActive = false;
+            if (animFrameId) cancelAnimationFrame(animFrameId);
+
+            document.getElementById('qrScreen').classList.add('hidden');
+            document.getElementById('ballotScreen').classList.remove('hidden');
+            document.getElementById('ballotScreen').classList.add('flex');
+            resetSelection();
+        }
+
+        function renderBallotCandidates() {
+            const grid = document.getElementById('candidatesGrid');
+            grid.innerHTML = '';
+
+            candidates.forEach(c => {
+                const card = document.createElement('div');
+                card.id = `card-${c.id}`;
+                card.onclick = () => selectCandidate(c.id);
+                card.className = "candidate-card cursor-pointer border-4 border-slate-300 rounded-2xl p-3 bg-white hover:border-emerald-400 transition-all flex flex-col items-center justify-between relative shadow-md";
+
+                let photoHtml = c.photoUrl 
+                    ? `<img src="${c.photoUrl}" class="w-full h-full object-cover">`
+                    : (c.id === 1 ? defaultSvgJanur : defaultSvgSilhouette);
+
+                card.innerHTML = `
+                    <span class="absolute top-2 left-3 text-3xl font-black text-slate-900">${c.number}</span>
+                    <div class="w-full h-40 sm:h-48 bg-slate-100 mt-6 mb-2 rounded-xl overflow-hidden flex items-center justify-center border border-slate-200" style="background-color: ${c.bgColor}">
+                        ${photoHtml}
+                    </div>
+                    <span class="text-sm sm:text-base font-black text-slate-900 tracking-wide uppercase text-center">${c.name}</span>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        function selectCandidate(id) {
+            selectedCandidateId = id;
+
+            candidates.forEach(c => {
+                const card = document.getElementById(`card-${c.id}`);
+                if (card) {
+                    card.classList.remove('border-emerald-500', 'ring-4', 'ring-emerald-400', 'bg-emerald-50');
+                    card.classList.add('border-slate-300', 'bg-white');
+                }
+            });
+
+            const selectedCard = document.getElementById(`card-${id}`);
+            if (selectedCard) {
+                selectedCard.classList.remove('border-slate-300', 'bg-white');
+                selectedCard.classList.add('border-emerald-500', 'ring-4', 'ring-emerald-400', 'bg-emerald-50');
+            }
+
+            document.getElementById('pilihBtn').disabled = false;
+        }
+
+        function resetSelection() {
+            selectedCandidateId = null;
+            candidates.forEach(c => {
+                const card = document.getElementById(`card-${c.id}`);
+                if (card) {
+                    card.classList.remove('border-emerald-500', 'ring-4', 'ring-emerald-400', 'bg-emerald-50');
+                    card.classList.add('border-slate-300', 'bg-white');
+                }
+            });
+            document.getElementById('pilihBtn').disabled = true;
+        }
+
+        function openConfirmationModal() {
+            if (!selectedCandidateId) return;
+
+            const c = candidates.find(item => item.id === selectedCandidateId);
+            document.getElementById('modalCandidateName').innerText = c.name;
+
+            const photoContainer = document.getElementById('modalPhotoContainer');
+            photoContainer.innerHTML = c.photoUrl 
+                ? `<img src="${c.photoUrl}" class="w-full h-full object-cover">`
+                : (c.id === 1 ? defaultSvgJanur : defaultSvgSilhouette);
+
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function closeConfirmationModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+        }
+
+        function confirmVote() {
+            if (!selectedCandidateId) return;
+
+            voteCounts[selectedCandidateId] = (voteCounts[selectedCandidateId] || 0) + 1;
+            saveVotesToStorage();
+            updateAdminResults();
+
+            closeConfirmationModal();
+            document.getElementById('successModal').classList.remove('hidden');
+
+            setTimeout(() => {
+                document.getElementById('successModal').classList.add('hidden');
+                document.getElementById('ballotScreen').classList.add('hidden');
+                document.getElementById('ballotScreen').classList.remove('flex');
+                document.getElementById('qrScreen').classList.remove('hidden');
+                resetSelection();
+                
+                // AUTO RESTART CAMERA UNTUK PEMILIH BERIKUTNYA
+                startCamera();
+            }, 3000);
+        }
+
+        // --- EDITOR FOTO & NAMA KANDIDAT ---
+        function openCandidateEditor() {
+            renderCandidateEditorList();
+            document.getElementById('editorModal').classList.remove('hidden');
+        }
+
+        function closeCandidateEditor() {
+            document.getElementById('editorModal').classList.add('hidden');
+        }
+
+        function renderCandidateEditorList() {
+            const container = document.getElementById('candidateEditorList');
+            container.innerHTML = '';
+
+            candidates.forEach(c => {
+                const card = document.createElement('div');
+                card.className = "border border-slate-200 p-3 rounded-xl bg-slate-50 flex flex-col space-y-2.5";
+                
+                let currentPreview = c.photoUrl 
+                    ? `<img src="${c.photoUrl}" class="w-full h-full object-cover">`
+                    : (c.id === 1 ? defaultSvgJanur : defaultSvgSilhouette);
+
+                card.innerHTML = `
+                    <div class="font-extrabold text-sm text-slate-800 flex justify-between">
+                        <span>Kandidat Nomor ${c.number}</span>
+                    </div>
+
+                    <div id="editPreview-${c.id}" class="w-20 h-28 self-center rounded-lg overflow-hidden border-2 border-slate-300 bg-white">
+                        ${currentPreview}
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="block text-[11px] font-bold text-slate-600">Unggah Foto (File):</label>
+                        <input type="file" accept="image/*" onchange="handlePhotoUpload(event, ${c.id})" class="text-xs w-full text-slate-500 file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-slate-200 file:text-slate-700 hover:file:bg-slate-300">
+                    </div>
+
+                    <button onclick="openSnapModal(${c.id})" class="w-full py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1 shadow">
+                        <i data-lucide="camera" class="w-3.5 h-3.5"></i> Potret dari Kamera
+                    </button>
+
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-600 mb-1">Nama Kandidat:</label>
+                        <input type="text" id="editName-${c.id}" value="${c.name}" class="w-full text-xs font-bold px-3 py-1.5 border rounded-lg focus:outline-emerald-500">
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            lucide.createIcons();
+        }
+
+        function handlePhotoUpload(event, candidateId) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const dataUrl = e.target.result;
+                const c = candidates.find(item => item.id === candidateId);
+                if (c) {
+                    c.photoUrl = dataUrl;
+                    document.getElementById(`editPreview-${candidateId}`).innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`;
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function openSnapModal(candidateId) {
+            activeEditCandidateId = candidateId;
+            document.getElementById('snapModal').classList.remove('hidden');
+            const video = document.getElementById('snapVideo');
+            if (mediaStream) {
+                video.srcObject = mediaStream;
+            }
+        }
+
+        function closeSnapModal() {
+            document.getElementById('snapModal').classList.add('hidden');
+            activeEditCandidateId = null;
+        }
+
+        function takeCandidateSnapshot() {
+            if (!activeEditCandidateId) return;
+            const video = document.getElementById('snapVideo');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            const c = candidates.find(item => item.id === activeEditCandidateId);
+            if (c) {
+                c.photoUrl = dataUrl;
+                document.getElementById(`editPreview-${activeEditCandidateId}`).innerHTML = `<img src="${dataUrl}" class="w-full h-full object-cover">`;
+            }
+            closeSnapModal();
+        }
+
+        function saveCandidatesConfig() {
+            candidates.forEach(c => {
+                const inputName = document.getElementById(`editName-${c.id}`);
+                if (inputName) c.name = inputName.value.toUpperCase();
+            });
+
+            localStorage.setItem('tanjungpakis_candidates_2026', JSON.stringify(candidates));
+            renderBallotCandidates();
+            closeCandidateEditor();
+        }
+
+        function resetCandidatesToDefault() {
+            candidates = JSON.parse(JSON.stringify(defaultCandidates));
+            localStorage.removeItem('tanjungpakis_candidates_2026');
+            renderCandidateEditorList();
+            renderBallotCandidates();
+        }
+
+        function loadCandidatesConfig() {
+            try {
+                const saved = localStorage.getItem('tanjungpakis_candidates_2026');
+                candidates = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(defaultCandidates));
+            } catch (e) {
+                candidates = JSON.parse(JSON.stringify(defaultCandidates));
+            }
+        }
+
+        // --- PANEL REKAP SUARA REALTIME ---
+        function toggleAdminPanel() {
+            const adminModal = document.getElementById('adminModal');
+            adminModal.classList.toggle('hidden');
+            updateAdminResults();
+        }
+
+        function updateAdminResults() {
+            const total = Object.values(voteCounts).reduce((a, b) => a + b, 0);
+            document.getElementById('totalVotesBadge').innerText = total;
+
+            const container = document.getElementById('adminResultsList');
+            container.innerHTML = '';
+
+            candidates.forEach(c => {
+                const count = voteCounts[c.id] || 0;
+                const pct = total > 0 ? ((count / total) * 100).toFixed(1) : 0;
+
+                const item = document.createElement('div');
+                item.innerHTML = `
+                    <div class="flex justify-between text-sm font-extrabold mb-1">
+                        <span>${c.number}. ${c.name}</span>
+                        <span>${count} suara (${pct}%)</span>
+                    </div>
+                    <div class="w-full bg-slate-200 rounded-full h-3.5 overflow-hidden">
+                        <div class="bg-emerald-600 h-full transition-all duration-500" style="width: ${pct}%"></div>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function saveVotesToStorage() {
+            try {
+                localStorage.setItem('tanjungpakis_votes_2026', JSON.stringify(voteCounts));
+            } catch (e) {}
+        }
+
+        function loadVotesFromStorage() {
+            try {
+                const saved = localStorage.getItem('tanjungpakis_votes_2026');
+                if (saved) voteCounts = JSON.parse(saved);
+            } catch (e) {}
+        }
+
+        function resetVoteCounts() {
+            voteCounts = { 1: 0, 2: 0, 3: 0 };
+            saveVotesToStorage();
+            updateAdminResults();
+        }
+    </script>
+</body>
+</html>
